@@ -5,31 +5,39 @@
 #Email: bodyn.lander@gmail.com                      #
 #####################################################
 
-import numpy as np
-from numpy import random as r
 import matplotlib.pyplot as plt
 import math
-plt.ion()
 from numpy import genfromtxt
-import pandas
 import matplotlib.patches as mpatches
-import statistics as st
 from collections import Counter
 from itertools import groupby
 from cycler import cycler
+from scipy.optimize import curve_fit
 
-#Only show plot when asked
+from functions import power_law
+
+#Not sure yet what to do with this code: Only show plot when asked
 #plt.ioff()
+plt.ion()
 
-def cost_function_plot(cost_train, cost_test, costfn, cost_update_size,
-        cost_zero=None, cost_svd=None):
-    '''Plot cost function'''
+def fit(cost_list):
+    '''Fit a power_law to the cost_list to estimate the final cost 
+    to which to network converges and the time it would take.'''
+
+    #x_list = [i for i in range(len(cost_list))]
+
+
+
+def cost_function_plot(cost_train, cost_test, p, cost_zero=None,
+        cost_svd=None, make_fit=True):
+    '''Plot cost function, fit on it the cost of svd or predict-zero 
+    and fit a power law through the points if asked.'''
 
     plot1, = plt.plot(cost_train, 'ro')
     plot2, = plt.plot(cost_test, 'go')
     plt.ylabel('Cost')
-    plt.xlabel('Steps of {} observations'.format(cost_update_size))
-    plt.title('Plot of ' + costfn.__name__ + ' cost function')
+    plt.xlabel('Steps of {} observations'.format(p.cost_update_size))
+    plt.title('Network:' + p.string)
     plt.legend([plot1, plot2], ['Average train batches', 'Test data'])
     text_position = (len(cost_train) - 1)*0.75
     if cost_zero:
@@ -39,8 +47,33 @@ def cost_function_plot(cost_train, cost_test, costfn, cost_update_size,
         plt.axhline(y=cost_svd, xmin=0, xmax=1, hold=None)
         plt.annotate('Cost predict svd', (text_position, cost_svd))
 
-def biplot(data, regions):
-    '''Plot the bottleneck hidden layer'''
+    #Fit power_law through costfunction
+    par_fit = None
+    if make_fit:
+        try:
+            x_values = [i for i in range(len(cost_test))]
+            #fit on all but 5 first values. More reliable.
+            par_fit, _ = curve_fit(power_law, x_values[5:], cost_test[5:])
+            a, b, c, d = par_fit
+            y_values = []
+            for x_value in x_values:
+                y_values.append(power_law(x_value, a, b, c, d))
+            plt.plot(y_values, 'y')
+            print(('Cost function fit: cost = {:.2f}*(steps - {:.2f})^'
+                   '(-{:.2f}) + {:.2f}').format(a, b, c, d))
+        except:
+            print('Around 100 points needed to fit cost funtion!')
+            print('Try decreasing cost_update_size or train for longer.')
+
+    #Save image
+    plt.savefig('figures/costplot/{}_{:1.5f}.png'.format(p.string, 
+        cost_test[-1]))
+    print(par_fit)
+    return par_fit
+
+
+def biplot(data, regions, name, cost):
+    '''Plot the reduced data set on a biplot, colored by origin'''
 
     #Make figure and axis
     fig, ax = plt.subplots()
@@ -66,3 +99,6 @@ def biplot(data, regions):
         ax.plot(x, y, marker='.', linestyle='', 
                 ms=4, label=unique_regions[i])
     ax.legend(loc=4, markerscale=3, prop={'size':6})
+
+    #Save image
+    plt.savefig('figures/biplot/{}_{:1.5f}.png'.format(name, cost))

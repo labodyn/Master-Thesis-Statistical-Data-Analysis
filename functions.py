@@ -8,6 +8,7 @@
 import theano as th
 import theano.tensor as T
 from numpy import random as r
+from numpy import exp
 
 #Define the types of activation functions
 def linear(x, w, b):
@@ -32,3 +33,7 @@ def init_weight(dim1, dim2, eps_init):
 
 def init_bias(dim, eps_init):
     return th.shared((r.uniform(size=(dim))-0.5)*eps_init)
+
+#Define the functional form of the cost function vs steps
+def power_law(x, a, b, c, d):
+    return a*(x + b)**(-c) + d
