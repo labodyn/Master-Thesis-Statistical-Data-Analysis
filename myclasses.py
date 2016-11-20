@@ -1,13 +1,19 @@
 #Class to keep track of the parameters in an orderly manner.
 from collections import OrderedDict
 
-class MyBunch(OrderedDict):
+class NNParameters(OrderedDict):
 
     def __init__(self, *args, **kwds):
-        super(MyBunch, self).__init__(*args, **kwds)
+        super(NNParameters, self).__init__(*args, **kwds)
         for key, value in self.items():
             setattr(self, key, value)
         #self.__dict__ = self
+
+        try:
+            self.make_network_string()
+        except:
+            print('Parameters missing in the construction of NNParameters!!')
+
 
     def make_network_string(self):
         '''Make a string of the network parameters'''

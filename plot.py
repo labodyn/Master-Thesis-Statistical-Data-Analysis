@@ -16,16 +16,33 @@ from scipy.optimize import curve_fit
 
 from functions import power_law
 
-#Not sure yet what to do with this code: Only show plot when asked
+#Not decided yet what to do with this code: Only show plot when asked or not
 #plt.ioff()
 plt.ion()
 
-def fit(cost_list):
+
+def fit_cost(cost_list):
     '''Fit a power_law to the cost_list to estimate the final cost 
     to which to network converges and the time it would take.'''
 
-    #x_list = [i for i in range(len(cost_list))]
+    fit_par = None
+    y_values = None
+    try:
+        start = 1
+        x_list = [i for i in range(len(cost_list))]
+        fit_par, _ = curve_fit(power_law, x_list[start:], cost_list[start:])
+        a, b, c, d = fit_par
+        y_values = []
+        for x_value in x_values:
+            y_values.append(power_law(x_value, a, b, c, d))
+        plt.plot(y_values, 'y')
+        print(('Cost function fit: cost = {:.4f}*(steps - {:.4f})^'
+               '(-{:.4f}) + {:.4f}').format(a, b, c, d))
+    except:
+        print('Around 100-150 points are needed to fit the cost funtion!')
+        print('Try decreasing cost_update_size or train for longer.')
 
+    return fit_par, y_values
 
 
 def cost_function_plot(cost_train, cost_test, p, cost_zero=None,
@@ -46,30 +63,17 @@ def cost_function_plot(cost_train, cost_test, p, cost_zero=None,
     if cost_svd:
         plt.axhline(y=cost_svd, xmin=0, xmax=1, hold=None)
         plt.annotate('Cost predict svd', (text_position, cost_svd))
-
-    #Fit power_law through costfunction
-    par_fit = None
+    fit_par = None
     if make_fit:
-        try:
-            x_values = [i for i in range(len(cost_test))]
-            #fit on all but 5 first values. More reliable.
-            par_fit, _ = curve_fit(power_law, x_values[5:], cost_test[5:])
-            a, b, c, d = par_fit
-            y_values = []
-            for x_value in x_values:
-                y_values.append(power_law(x_value, a, b, c, d))
+        fit_par, y_values = fit_cost(cost_test)
+        if y_values:
             plt.plot(y_values, 'y')
-            print(('Cost function fit: cost = {:.2f}*(steps - {:.2f})^'
-                   '(-{:.2f}) + {:.2f}').format(a, b, c, d))
-        except:
-            print('Around 100 points needed to fit cost funtion!')
-            print('Try decreasing cost_update_size or train for longer.')
 
     #Save image
-    plt.savefig('figures/costplot/{}_{:1.5f}.png'.format(p.string, 
-        cost_test[-1]))
-    print(par_fit)
-    return par_fit
+    cost = cost_test[-1]
+    plt.savefig('figures/costplot/{}_{:1.5f}.png'.format(p.string, cost))
+
+    return fit_par
 
 
 def biplot(data, regions, name, cost):

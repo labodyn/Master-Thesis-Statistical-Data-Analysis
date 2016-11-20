@@ -11,23 +11,30 @@ import numpy as np
 import time
 from sklearn.cross_validation import train_test_split
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 from functions import *
 
-def performance_LDA(data_train, data_test, regions_train, regions_test):
+
+def performance_knn():
+    pass
+
+def performance_lda(data_train, data_test, regions_train, regions_test):
     '''Build a linear discriminant analysis classifier.
     return the performance on the test set'''
 
-    X_train = np.array(data_train)
+    #Build Model
+    x_train = np.array(data_train)
     y_train = np.array(regions_train)
     x_test = np.array(data_test)
     y_test = np.array(regions_test)
     clf = LDA()
-    clf.fit(X_train, y_train)
+    clf.fit(x_train, y_train)
 
-    clf.predict(X)
-    return clf
-
+    #Test performance
+    y_predict = clf.predict(x_test)
+    print('Accuracy: {:1.4f}'.format(accuracy_score(y_test, y_predict)))
+    print('Confusion Matrix:\n', confusion_matrix(y_test, y_predict))
 
 def predict_zero(x, p):
     '''Calculate the cost for predicting zero for every value.'''

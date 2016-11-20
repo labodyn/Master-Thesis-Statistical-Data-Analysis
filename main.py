@@ -9,11 +9,11 @@ import pandas as pd
 import numpy as np
 from collections import OrderedDict
 
-from myclasses import MyBunch
-from train import predict_zero, perform_svd, train_autoencoder, performance_LDA
+from sklearn.cross_validation import train_test_split
+from myclasses import NNParameters
+from train import predict_zero, perform_svd, train_autoencoder, performance_lda
 from plot import cost_function_plot, biplot
 from functions import rectifier, sigmoid, linear, cross_entropy, least_squares
-
 
 def get_parameters():
     '''Returns all the parameters of the network and gradient descent.'''
@@ -23,22 +23,22 @@ def get_parameters():
     #Network settings
     p['has_bias'] = True #Add bias to the layers or not
     p['cost_fn'] = cross_entropy
-    p['activation_fn'] = [rectifier, rectifier, linear, rectifier, rectifier, sigmoid]
+    p['activation_fn'] = [rectifier, rectifier, linear, rectifier, rectifier, 
+            sigmoid]
     p['n_hidden_neurons'] = [100, 100, 2, 100, 100]
 
     #Gradient descent parameters
-    p['test_size'] = 0.3
+    p['test_size'] = 0.05 #Fraction to test the cost
     p['eps_init'] = 0.1 #Half of the init range of the network param
     p['batch_size'] = 10 #8 #Number of observations to use for gradient descent
     p['alpha'] = 0.8 #Inertie coefficient.
-    p['delta'] = 2 #Learning rate
+    p['delta'] = 1 #2 #Learning rate
     p['max_loops'] = 800 #Maximum number of loops over all the data
     p['max_time'] = 18000 #Maximum time
     p['low_cost'] = 0.04 #Lowest cost
-    p['cost_update_size'] = 2000 #Number of data to use before updating cost
-    p['plot_svd'] = True #Plot the cost of data reduction with an SVD
+    p['cost_update_size'] = 5000 #Number of data to use before updating cost
 
-    return MyBunch(p)
+    return NNParameters(p)
 
 
 def search_grid():
@@ -76,7 +76,6 @@ def process_data():
     #Get parameters
     p = get_parameters()
     p.print_out()
-    p.make_network_string()
 
     #Import data
     df = pd.read_csv('datasets/ReceptenBinair_minimun2ingredients.csv',\
@@ -91,7 +90,6 @@ def process_data():
     results = train_autoencoder(data, p)
     bottleneck_neurons, cost_train, cost_test, running_time = results
 
-
     #Try out some linear reduction methods to compare with
     #cost_zero = predict_zero(data, p)
     #cost_svd, data_svd_reduced = perform_svd(data, p)
@@ -100,7 +98,16 @@ def process_data():
     fit = cost_function_plot(cost_train, cost_test, p)#, 
         #cost_zero=cost_zero, cost_svd=cost_svd) 
     biplot(bottleneck_neurons, regions, p.string, cost_test[-1])
+    input('Press any key to continue')
     #biplot(data_svd_reduced, regions, 'svd', cost_svd)
+
+    #Measure Performance. Different train/test split.
+    data_train, data_test = train_test_split(data, test_size=0.3, 
+            random_state=16)
+    regions_train, regions_test = train_test_split(regions, test_size=0.3,
+            random_state=16)
+    performance_lda(data_train, data_test, regions_train, regions_test)
+
 
 
 if __name__ == '__main__':
