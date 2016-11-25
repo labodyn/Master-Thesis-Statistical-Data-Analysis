@@ -1,6 +1,6 @@
-#Class to keep track of the parameters in an orderly manner.
 from collections import OrderedDict
 
+#Class to keep track of the parameters in an orderly manner.
 class NNParameters(OrderedDict):
 
     def __init__(self, *args, **kwds):

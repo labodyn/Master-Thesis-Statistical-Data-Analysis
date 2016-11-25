@@ -13,6 +13,7 @@ from collections import Counter
 from itertools import groupby
 from cycler import cycler
 from scipy.optimize import curve_fit
+from mpl_toolkits.mplot3d import Axes3D
 
 from functions import power_law
 
@@ -55,7 +56,7 @@ def cost_function_plot(cost_train, cost_test, p, cost_zero=None,
     plt.ylabel('Cost')
     plt.xlabel('Steps of {} observations'.format(p.cost_update_size))
     plt.title('Network:' + p.string)
-    plt.legend([plot1, plot2], ['Average train batches', 'Test data'])
+    plt.legend([plot1, plot2], ['Train batches (averaged)', 'Test data'])
     text_position = (len(cost_train) - 1)*0.75
     if cost_zero:
         plt.axhline(y=cost_zero, xmin=0, xmax=1, hold=None)
@@ -77,31 +78,43 @@ def cost_function_plot(cost_train, cost_test, p, cost_zero=None,
 
 
 def biplot(data, regions, name, cost):
-    '''Plot the reduced data set on a biplot, colored by origin'''
+    '''Plot the reduced data set on a biplot or 3d plot, colored by origin'''
 
-    #Make figure and axis
-    fig, ax = plt.subplots()
-
-    #Set colors of the regions
-    ax.set_prop_cycle(cycler('color', ['lightgray', 'purple', 'red',
-        'violet', 'orange', 'green', 'greenyellow', 'yellow', 'blue',
-        'black', 'turquoise']))
+    colors = {'NorthAmerican':'lightgray',
+            'LatinAmerican':'red',
+            'SouthernEuropean':'purple',
+            'WesternEuropean':'violet',
+            'EasternEuropean':'blue',
+            'NorthernEuropean':'turquoise',
+            'African':'black',
+            'MiddleEastern':'green',
+            'SouthAsian':'greenyellow',
+            'SoutheastAsian':'yellow',
+            'EastAsian':'orange'}
 
     #Create a list with the unique regions sorted in descending frequency
     region_counts = Counter(regions)
-    unique_regions = sorted(region_counts, key=region_counts.get, 
-            reverse=True)
+    regions_list = sorted(region_counts, key=region_counts.get, reverse=True)
 
     #Create a list containing the lists of recipes per region
-    recipes_by_region = [[] for _ in range(len(unique_regions))]
+    recipes_by_region = [[] for _ in range(len(regions_list))]
     for recipe, region in zip(data, regions):
-        recipes_by_region[unique_regions.index(region)].append(recipe)
+        recipes_by_region[regions_list.index(region)].append(recipe)
+
+    #Determine dimensions of data and make a corresponding type of plot
+    dim = len(data[0])
+    if not dim in [2, 3]:
+        return
+    if dim == 2: #2D plot
+        fig, ax = plt.subplots()
+    elif dim == 3: #3D plot
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
 
     #Plot the recipies for each group, highest frequency first
     for i, recipe in enumerate(recipes_by_region):
-        x, y = zip(*recipe)
-        ax.plot(x, y, marker='.', linestyle='', 
-                ms=4, label=unique_regions[i])
+        ax.plot(*zip(*recipe), marker='.', linestyle='', 
+                color=colors[regions_list[i]], ms=4, label=regions_list[i])
     ax.legend(loc=4, markerscale=3, prop={'size':6})
 
     #Save image

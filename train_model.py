@@ -9,8 +9,11 @@ import theano as th
 import theano.tensor as T
 import numpy as np
 import time
+import pickle
+from six.moves import cPickle
 from sklearn.cross_validation import train_test_split
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis as QDA
 from sklearn.metrics import accuracy_score, confusion_matrix
 
 from functions import *
@@ -28,7 +31,7 @@ def performance_lda(data_train, data_test, regions_train, regions_test):
     y_train = np.array(regions_train)
     x_test = np.array(data_test)
     y_test = np.array(regions_test)
-    clf = LDA()
+    clf = QDA()
     clf.fit(x_train, y_train)
 
     #Test performance
@@ -36,7 +39,9 @@ def performance_lda(data_train, data_test, regions_train, regions_test):
     print('Accuracy: {:1.4f}'.format(accuracy_score(y_test, y_predict)))
     print('Confusion Matrix:\n', confusion_matrix(y_test, y_predict))
 
-def predict_zero(x, p):
+    return y_predict
+
+def perform_zero_prediction(x, p):
     '''Calculate the cost for predicting zero for every value.'''
 
     if p.cost_fn.__name__ == 'least_squares':
@@ -71,28 +76,14 @@ def perform_svd(x, p):
 
     return cost, z_k
 
-
-def create_batches(x_train, batch_size):
-    '''Create minibatches of size 'batchsize'. Blend last two batches 
-    together if last batch doesn't have full size.  '''
-
-    train_batches = []
-    for i in range(0, len(x_train), batch_size):
-        train_batches.append(x_train[i:i+batch_size])
-
-    if len(train_batches[-1]) < batch_size:
-        last_batch = train_batches.pop()
-        train_batches[-2] += last_batch
-
-    return train_batches
-
-
-def train_autoencoder(data, p):
-    ''' Initialize the network parameters in theano.
+def perform_autoencoding(data, p):
+    ''' Initialize the autoencoder network in theano.
     Execute a loop that calculates the gradient using backward propagation.
     Use minibatches and momentum to speed up the learning.
     The algorithm stops when either max_loops, max_time or low_cost 
-    has been reached. '''
+    has been reached.  Return a list with train and test cost, 
+    along with run time and the value of the bottleneck neurons.
+    Write the model to file'''
 
     #Split in train and test data 
     data_train, data_test = train_test_split(data, 
@@ -102,8 +93,14 @@ def train_autoencoder(data, p):
     print('Split data in {} training data and {} testing data'
                         .format(len(x_train), len(x_test)))
 
-    #Create mini-batches with size 'batch_size'
-    train_batches = create_batches(x_train, p.batch_size)
+    #Create minibatches of size 'batchsize'. 
+    train_batches = []
+    for i in range(0, len(x_train), p.batch_size):
+        train_batches.append(x_train[i:i + p.batch_size])
+    #Blend last two batches together if last batch doesn't have full size.
+    if len(train_batches[-1]) < p.batch_size:
+        last_batch = train_batches.pop()
+        train_batches[-2] += last_batch
 
     #Define arrays over the layers of the theano variables.
     target = T.dmatrix()
@@ -122,8 +119,7 @@ def train_autoencoder(data, p):
     n_neurons = [n_features] + p.n_hidden_neurons + [n_features]
     bias_init = p.eps_init if p.has_bias else 0
     for i in range(len(n_neurons) - 1):
-        weights.append(init_weight(n_neurons[i], n_neurons[i+1], 
-            p.eps_init))
+        weights.append(init_weight(n_neurons[i], n_neurons[i+1], p.eps_init))
         weights_momentum.append(init_weight(n_neurons[i], 
             n_neurons[i+1], p.eps_init))
         biases.append(init_bias(n_neurons[i+1], bias_init))
@@ -157,13 +153,15 @@ def train_autoencoder(data, p):
 
     #Define usefull functions in Theano
     neuron_first_layer = neurons[0]
+    neuron_last_layer = neurons[-1]
     neuron_bottleneck_layer = neurons[n_neurons.index(min(n_neurons))]
     give_cost = th.function([neuron_first_layer, target], cost)
     do_update = th.function([], updates=updates)
     do_update_momentum = th.function([neuron_first_layer, target], 
         updates=updates_momentum)
-    give_bottleneck_neurons = th.function([neuron_first_layer], 
+    give_bottleneck_layer = th.function([neuron_first_layer], 
             neuron_bottleneck_layer)
+    give_last_layer = th.function([neuron_first_layer], neuron_last_layer)
 
     #Define parameters for the gradient descent
     cost_train = []
@@ -174,9 +172,8 @@ def train_autoencoder(data, p):
     loops_counter = 0
     converged = False
 
-    #Perform gradient descent over all data untill converged
+    #Perform gradient descent over all data until converged or interrupted.
     print('Training the network...')
-
     try:
         while not converged:
 
@@ -191,7 +188,7 @@ def train_autoencoder(data, p):
                 do_update()
                 do_update_momentum(train_batch,train_batch)
 
-                #Store the data that is used in the current cost step 
+                #Store the data that is used in the current cost step
                 used_data += train_batch
 
                 #If sufficient data has been used, update the cost lists.
@@ -200,25 +197,27 @@ def train_autoencoder(data, p):
                     #Update cost_train and cost_test
                     cost_train.append(float(give_cost(used_data, used_data)))
                     cost_test.append(float(give_cost(x_test, x_test)))
+                    used_data = []
                     print(('Data loops: {:3}, Run time: {:5.0f}s, '
                             'Train cost: {:1.5f}, Test cost: {:1.5f}')
                             .format(loops_counter, running_time, 
                             cost_train[-1], cost_test[-1]))
-
-                    #Reset the list of training data in the current cost step
-                    used_data = []
 
                     #Stopping criteria
                     running_time = time.time() - start_time
                     converged = (cost_test[-1] < p.low_cost 
                         or loops_counter > p.max_loops 
                         or running_time > p.max_time)
-
                     if converged:
                         print('Gradient descent has converged!')
                         break
 
-    #In case gradient descent gets interrupted
+    #When converged of in case gradient descent gets interrupted
     finally:
-        bottleneck_neurons = give_bottleneck_neurons(data.tolist())
+
+        #Save network
+        f = open('output/{}_{:0.4f}.pkl'.format(p.string, cost_test[-1]), 'wb')
+        cPickle.dump(give_last_layer, f, protocol=cPickle.HIGHEST_PROTOCOL)
+
+        bottleneck_neurons = give_bottleneck_layer(data.tolist())
         return bottleneck_neurons, cost_train, cost_test, running_time
